@@ -35,7 +35,7 @@ class LaunchSignals(QObject):
 class SyncplayMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Syncplay Lite (多放映厅增强版)")
+        self.setWindowTitle("LAN Syncplay (局域网同步播放) - byzh")
         self.setWindowIcon(QIcon(resource_path("assets/byzh16x16-256x256.ico")))
         self.resize(700, 650)
 
