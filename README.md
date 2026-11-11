@@ -2,7 +2,7 @@
 
 <p align="center">   <img src="https://img.shields.io/badge/Platform-Windows-blue" alt="Platform">   <img src="https://img.shields.io/badge/Python-3.8+-brightgreen" alt="Python Version">   <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">   <img src="https://img.shields.io/badge/Player-mpv%20%7C%20VLC-red" alt="Player Support"> </p>
 
-<p align="center">   [English](README_EN.md) | <b>简体中文</b> </p>
+[English](README_EN.md) | **简体中文**
 
 一个轻量的 Windows 局域网「一起看电影」同步工具。房主用自己的 mpv / VLC 播放本地视频，好友端自动跟随播放、暂停和快进快退，聊天文字会直接飘在视频画面上。
 

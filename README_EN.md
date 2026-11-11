@@ -8,8 +8,6 @@
 </p>
 **English** | [简体中文](README.md)
 
-<p align="center">   </b>English</b> | [简体中文](README.md) </p>
-
 A lightweight LAN watch-together tool for Windows. The host plays a local video with mpv or VLC, and the guest automatically follows play, pause, seek and speed of progress. Chat messages are shown directly on top of the video as an OSD overlay.
 
 ## Preview
