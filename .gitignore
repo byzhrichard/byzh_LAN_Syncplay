@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+build/
+dist/
+wheels/
+
+*.egg-info
+*.py[oc]
+*.spec
+
+# Virtual environments
+.venv/
+
+# uv
+uv.lock
+.python-version
+
+# else
+vlc.exe
+mpv.exe
