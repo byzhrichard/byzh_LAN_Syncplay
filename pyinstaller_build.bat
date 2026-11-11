@@ -10,7 +10,7 @@ call .venv\Scripts\activate
 set /p VERSION=<.version
 
 pyinstaller -F -w ^
---name="LAN Syncplay-%VERSION%" ^
+--name="LAN_Syncplay-%VERSION%" ^
 -i assets/byzh16x16-256x256.ico ^
 --add-data "assets;assets" ^
 --clean ^
