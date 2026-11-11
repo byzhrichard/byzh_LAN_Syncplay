@@ -1,11 +1,7 @@
 import sys
 import os
-import json
-import socket
-import threading
-import subprocess
 import time
-import struct
+import threading
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QPushButton, QLabel, QLineEdit, 
@@ -15,175 +11,26 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtCore import Signal, QObject, QTimer, QSettings
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 
+# 导入播放器模块
 from player_mpv import MPVController, auto_detect_mpv
 from player_vlc import VLCController, auto_detect_vlc
 
-# ----------------- 极速元数据解析 -----------------
-def get_mp4_duration(filepath):
-    file_size = os.path.getsize(filepath)
-    with open(filepath, 'rb') as f:
-        head = f.read(2 * 1024 * 1024)
-        idx = head.find(b'mvhd')
-        data = head[idx:] if idx != -1 else b''
+# 导入视频元数据解析模块
+from media_utils import get_video_duration_fast, format_size, format_time
 
-        if not data and file_size > 4 * 1024 * 1024:
-            f.seek(file_size - 2 * 1024 * 1024)
-            tail = f.read(2 * 1024 * 1024)
-            idx = tail.find(b'mvhd')
-            if idx != -1: data = tail[idx:]
-
-        if data and len(data) >= 36:
-            version = data[4]
-            if version == 1:
-                timescale, duration = struct.unpack('>IQ', data[24:36])
-            else:
-                timescale, duration = struct.unpack('>II', data[16:24])
-            if timescale > 0:
-                return int(duration / timescale)
-    return 0
-
-def get_mkv_duration(filepath):
-    with open(filepath, 'rb') as f:
-        chunk = f.read(1024 * 1024)
-        idx = chunk.find(b'\x44\x89')
-        if idx != -1 and idx + 11 < len(chunk):
-            len_byte = chunk[idx + 2]
-            if len_byte in (0x84, 4):
-                val = struct.unpack('>f', chunk[idx + 3:idx + 7])[0]
-                return int(val / 1000) if val > 1000 else int(val)
-            elif len_byte in (0x88, 8):
-                val = struct.unpack('>d', chunk[idx + 3:idx + 11])[0]
-                return int(val / 1000) if val > 1000 else int(val)
-    return 0
-
-def get_video_duration_fast(filepath):
-    try:
-        ext = os.path.splitext(filepath)[1].lower()
-        if ext in ['.mp4', '.m4v', '.mov', '.ts']:
-            d = get_mp4_duration(filepath)
-            if d > 0: return d
-        elif ext in ['.mkv', '.webm']:
-            d = get_mkv_duration(filepath)
-            if d > 0: return d
-
-        d = get_mkv_duration(filepath)
-        if d > 0: return d
-        return get_mp4_duration(filepath)
-    except Exception:
-        return 0
-
-def format_size(bytes_num):
-    if bytes_num <= 0: return "--"
-    if bytes_num < 1024 * 1024:
-        return f"{bytes_num / 1024:.1f} KB"
-    elif bytes_num < 1024 * 1024 * 1024:
-        return f"{bytes_num / (1024 * 1024):.1f} MB"
-    else:
-        return f"{bytes_num / (1024 * 1024 * 1024):.2f} GB"
-
-def format_time(seconds):
-    if seconds <= 0: return "读取中..."
-    h = seconds // 3600
-    m = (seconds % 3600) // 60
-    s = seconds % 60
-    if h > 0:
-        return f"{h:02d}:{m:02d}:{s:02d}"
-    return f"{m:02d}:{s:02d}"
-
-# ----------------- 局域网通信 -----------------
-class NetworkSignals(QObject):
-    received = Signal(dict)
-    connected = Signal(str)
-    disconnected = Signal()
-
-class SyncNetwork:
-    def __init__(self, signals: NetworkSignals):
-        self.signals = signals
-        self.sock = None
-        self.conn = None
-        self.running = False
-
-    def start_server(self, host_ip="0.0.0.0", port=8899):
-        self.running = True
-        threading.Thread(target=self._server_thread, args=(host_ip, port), daemon=True).start()
-
-    def start_client(self, host_ip, port=8899):
-        self.running = True
-        threading.Thread(target=self._client_thread, args=(host_ip, port), daemon=True).start()
-
-    def _server_thread(self, host_ip, port):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            self.sock.bind((host_ip, port))
-            self.sock.listen(1)
-            while self.running:
-                conn, addr = self.sock.accept()
-                self.conn = conn
-                self.signals.connected.emit(f"{addr[0]}")
-                self._receive_loop(self.conn)
-        except Exception: pass
-
-    def _client_thread(self, host_ip, port):
-        try:
-            self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.conn.connect((host_ip, port))
-            self.signals.connected.emit(f"{host_ip}")
-            self._receive_loop(self.conn)
-        except Exception:
-            self.signals.disconnected.emit()
-
-    def _receive_loop(self, conn):
-        buf = ""
-        while self.running:
-            try:
-                data = conn.recv(4096).decode('utf-8')
-                if not data: break
-                buf += data
-                while "\n" in buf:
-                    line, buf = buf.split("\n", 1)
-                    if line.strip():
-                        self.signals.received.emit(json.loads(line.strip()))
-            except Exception: break
-        self.signals.disconnected.emit()
-
-    def send_cmd(self, action, t=0, sender="", extra=None):
-        if self.conn:
-            try:
-                msg = {"action": action, "time": t, "sender": sender}
-                if extra: msg.update(extra)
-                self.conn.sendall((json.dumps(msg) + "\n").encode('utf-8'))
-            except Exception: pass
-
-    def is_connected(self):
-        return self.conn is not None
-
-    def close(self):
-        self.running = False
-        if self.conn:
-            try: self.conn.close()
-            except: pass
-            self.conn = None
-        if self.sock:
-            try: self.sock.close()
-            except: pass
-            self.sock = None
-
-class PingSignals(QObject):
-    log_signal = Signal(str)
-    finished_signal = Signal()
+# 导入网络通信与诊断模块
+from network import SyncNetwork, NetworkSignals, PingSignals, run_icmp_ping, run_tcp_ping
 
 class LaunchSignals(QObject):
     launched_signal = Signal(bool, str)
 
-# ----------------- 主界面 -----------------
 class SyncplayMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Syncplay Lite")
+        self.setWindowTitle("Syncplay Lite (多放映厅增强版)")
         self.resize(700, 650)
 
-        # 开启文件拖拽进窗口载入功能
+        # 开启文件拖拽进窗口载入支持
         self.setAcceptDrops(True)
 
         self.player = None
@@ -199,6 +46,7 @@ class SyncplayMainWindow(QMainWindow):
         self.last_player_time = 0
         self.suppress_local_detect = False
 
+        # 网络信号
         self.net_signals = NetworkSignals()
         self.net_signals.received.connect(self.on_net_received)
         self.net_signals.connected.connect(self.on_connected_ok)
@@ -210,11 +58,12 @@ class SyncplayMainWindow(QMainWindow):
         self.host_sync_timer.setInterval(2000)
         self.host_sync_timer.timeout.connect(self.host_broadcast_tick)
 
-        # 本地状态与存活监听（300ms 一次）
+        # 播放器存活与按键监听（300ms 一次）
         self.monitor_timer = QTimer(self)
         self.monitor_timer.setInterval(300)
         self.monitor_timer.timeout.connect(self.monitor_timer_tick)
 
+        # Ping 信号
         self.ping_signals = PingSignals()
         self.ping_signals.log_signal.connect(self.append_ping_log)
         self.ping_signals.finished_signal.connect(self.on_ping_finished)
@@ -222,7 +71,6 @@ class SyncplayMainWindow(QMainWindow):
         self.launch_signals = LaunchSignals()
         self.launch_signals.launched_signal.connect(self.on_player_launched_result)
 
-        # 本地设置管理器
         self.settings = QSettings("SyncplayLite", "Config")
 
         self.init_ui()
@@ -346,7 +194,7 @@ class SyncplayMainWindow(QMainWindow):
     def init_sync_tab(self):
         layout = QVBoxLayout(self.tab_sync)
 
-        # 1. 顶端看板 (支持文件拖拽提示)
+        # 1. 顶端看板
         grp_video_info = QGroupBox("视频载入与播放器启动 (可直接将视频文件拖入窗口)")
         v_video = QVBoxLayout(grp_video_info)
 
@@ -470,7 +318,7 @@ class SyncplayMainWindow(QMainWindow):
         self.txt_ping_log.setReadOnly(True)
         layout.addWidget(self.txt_ping_log)
 
-    # --- 拖拽载入文件支持 ---
+    # --- 拖拽载入文件 ---
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
@@ -487,8 +335,7 @@ class SyncplayMainWindow(QMainWindow):
         f, _ = QFileDialog.getOpenFileName(
             self, "选择视频文件", "", "视频 (*.mp4 *.mkv *.avi *.flv *.ts *.mov *.m4v *.webm)"
         )
-        if f:
-            self.load_video_file(f)
+        if f: self.load_video_file(f)
 
     def load_video_file(self, f):
         self.video_path = f
@@ -733,7 +580,6 @@ class SyncplayMainWindow(QMainWindow):
         elif act == "chat":
             chat_text = msg.get('msg', '')
             self.log(f"💬 [{sender}]: {chat_text}")
-            # 核心特性：接收到好友消息时，直接在正在播放的视频画面上飘出弹幕！
             if self.player:
                 self.player.show_osd(f"💬 {sender}: {chat_text}")
 
@@ -877,17 +723,15 @@ class SyncplayMainWindow(QMainWindow):
         self.network.send_cmd("chat", sender=my_name, extra={"msg": text})
         self.log(f"💬 [{my_name}]: {text}")
         
-        # 本地发送的文字也浮现在自己的视频画面上方
         if self.player:
             self.player.show_osd(f"💬 {my_name}: {text}")
 
         self.txt_chat_input.clear()
 
-    # --- 配置自动保存与载入 (QSettings) ---
+    # --- QSettings 配置记忆 ---
     def load_saved_settings(self):
         saved_name = self.settings.value("my_name", "")
-        if saved_name:
-            self.txt_my_name.setText(saved_name)
+        if saved_name: self.txt_my_name.setText(saved_name)
 
         saved_ip = self.settings.value("last_ip", "")
         if saved_ip:
@@ -923,7 +767,7 @@ class SyncplayMainWindow(QMainWindow):
         self.settings.setValue("mpv_path", self.txt_mpv_path.text().strip())
         self.settings.setValue("vlc_path", self.txt_vlc_path.text().strip())
 
-    # --- Ping 诊断 ---
+    # --- Ping 诊断调用 ---
     def append_ping_log(self, text):
         self.txt_ping_log.append(f"[{time.strftime('%H:%M:%S')}] {text}")
 
@@ -939,19 +783,7 @@ class SyncplayMainWindow(QMainWindow):
         self.btn_ping_icmp.setEnabled(False)
         self.btn_ping_tcp.setEnabled(False)
         self.append_ping_log(f"开始对 {ip} 发起系统 Ping 测试...")
-
-        def run():
-            param = "-n" if sys.platform == "win32" else "-c"
-            cmd = ["ping", param, "4", ip]
-            try:
-                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                for line in proc.stdout:
-                    if line.strip(): self.ping_signals.log_signal.emit(line.strip())
-            except Exception as e:
-                self.ping_signals.log_signal.emit(f"Ping 异常: {e}")
-            self.ping_signals.finished_signal.emit()
-
-        threading.Thread(target=run, daemon=True).start()
+        threading.Thread(target=run_icmp_ping, args=(ip, self.ping_signals), daemon=True).start()
 
     def start_tcp_ping(self):
         ip = self.txt_ping_ip.text().strip()
@@ -968,34 +800,7 @@ class SyncplayMainWindow(QMainWindow):
         self.btn_ping_icmp.setEnabled(False)
         self.btn_ping_tcp.setEnabled(False)
         self.append_ping_log(f"正在对 {ip}:{port} 进行 TCP 握手测速...")
-
-        def run():
-            success = 0
-            for i in range(1, 4):
-                start = time.perf_counter()
-                try:
-                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    s.settimeout(2.0)
-                    s.connect((ip, port))
-                    s.close()
-                    elapsed = (time.perf_counter() - start) * 1000
-                    self.ping_signals.log_signal.emit(f"第 {i} 次连接成功: 延迟 = {elapsed:.1f} ms")
-                    success += 1
-                except ConnectionRefusedError:
-                    self.ping_signals.log_signal.emit(f"第 {i} 次失败: 对方拒绝连接 (端口未开启，请确认房主已开启服务)")
-                except socket.timeout:
-                    self.ping_signals.log_signal.emit(f"第 {i} 次失败: 连接超时 (请确认填的是房主 IP，且未被防火墙拦截)")
-                except Exception as e:
-                    self.ping_signals.log_signal.emit(f"第 {i} 次失败: {e}")
-                time.sleep(0.5)
-
-            if success > 0:
-                self.ping_signals.log_signal.emit("✅ 诊断结果: 端口完全畅通！")
-            else:
-                self.ping_signals.log_signal.emit("❌ 诊断结果: 端口不可达，请核实房主服务与防火墙设置。")
-            self.ping_signals.finished_signal.emit()
-
-        threading.Thread(target=run, daemon=True).start()
+        threading.Thread(target=run_tcp_ping, args=(ip, port, self.ping_signals), daemon=True).start()
 
     def closeEvent(self, event):
         self.save_current_settings()
