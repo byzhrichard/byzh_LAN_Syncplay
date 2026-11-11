@@ -1,12 +1,14 @@
 # Syncplay Lite
 
+<p align="center">   <img src="https://img.shields.io/badge/Platform-Windows-blue" alt="Platform">   <img src="https://img.shields.io/badge/Python-3.8+-brightgreen" alt="Python Version">   <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">   <img src="https://img.shields.io/badge/Player-mpv%20%7C%20VLC-red" alt="Player Support"> </p>
+
 [English](README_EN.md) | **简体中文**
 
 一个轻量的 Windows 局域网「一起看电影」同步工具。房主用自己的 mpv / VLC 播放本地视频，好友端自动跟随播放、暂停和快进快退，聊天文字会直接飘在视频画面上。
 
 ## 界面预览
 
-<img src="src/界面.png" width="50%" alt="界面截图">
+<img src="docs/界面.png" width="50%" alt="界面截图">
 
 ## 特性
 
@@ -37,7 +39,7 @@
 
 | 工具 | 说明 |
 | --- | --- |
-| [Radmin VPN](https://www.radmin-vpn.com/) | 免费、安装即用，会分配一个 `26.x.x.x` 的虚拟 IP，配置最简单，**推荐** |
+| [Radmin LAN](https://www.radmin-lan.cn/) | 免费、安装即用，会分配一个 `26.x.x.x` 的虚拟 IP，配置最简单，**推荐** |
 | [蒲公英](https://pgy.oray.com/) | 国内节点，连接稳定；免费版有设备数和带宽限制 |
 | [网易 UU 加速器](https://uu.163.com/) | 主打游戏加速，也提供「联机」功能，适合已经装了 UU 的用户 |
 | [Tailscale](https://tailscale.com/) | 基于 WireGuard，速度较好，需要账号登录 |
@@ -51,16 +53,26 @@
 ## 运行
 
 ```bash
+# 克隆仓库
 git clone https://github.com/byzh/byzh_LAN_Syncplay.git
 cd byzh_LAN_Syncplay
-pip install PySide6 python-vlc websockets
+
+# 安装虚拟环境
+python -m venv .venv
+
+# 安装python库
+.venv\Scripts\activate
+pip install PySide6 pyinstaller -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 运行
+.venv\Scripts\activate
 python main.py
 ```
 
 ## 打包
 
 ```bash
-pyinstaller -F -w main.py
+pyinstaller_build.bat
 ```
 
 ## 目录结构

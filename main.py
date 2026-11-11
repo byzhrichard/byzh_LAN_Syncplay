@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QTabWidget, QGroupBox, QListWidget, QListWidgetItem,
                                QComboBox)
 from PySide6.QtCore import Signal, QObject, QTimer, QSettings
-from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QIcon
 
 # 导入播放器模块
 from player_mpv import MPVController, auto_detect_mpv
@@ -21,6 +21,14 @@ from media_utils import get_video_duration_fast, format_size, format_time
 # 导入网络通信与诊断模块
 from network import SyncNetwork, NetworkSignals, PingSignals, run_icmp_ping, run_tcp_ping
 
+def resource_path(relative_path):
+    """获取资源的绝对路径，完美兼容源码运行与 PyInstaller 单文件打包模式"""
+    if hasattr(sys, '_MEIPASS'):
+        # 单文件打包运行模式：指向临时解压目录
+        return os.path.join(sys._MEIPASS, relative_path)
+    # 普通源码运行模式：指向当前目录
+    return os.path.join(os.path.abspath("."), relative_path)
+
 class LaunchSignals(QObject):
     launched_signal = Signal(bool, str)
 
@@ -28,6 +36,7 @@ class SyncplayMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Syncplay Lite (多放映厅增强版)")
+        self.setWindowIcon(QIcon(resource_path("assets/byzh16x16-256x256.ico")))
         self.resize(700, 650)
 
         # 开启文件拖拽进窗口载入支持

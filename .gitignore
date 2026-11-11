@@ -18,3 +18,4 @@ uv.lock
 # else
 vlc.exe
 mpv.exe
+test.py

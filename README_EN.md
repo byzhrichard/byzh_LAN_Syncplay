@@ -1,12 +1,19 @@
 # Syncplay Lite
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-Windows-blue" alt="Platform">
+  <img src="https://img.shields.io/badge/Python-3.8+-brightgreen" alt="Python Version">
+  <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">
+  <img src="https://img.shields.io/badge/Player-mpv%20%7C%20VLC-red" alt="Player Support">
+</p>
+
 **English** | [简体中文](README.md)
 
 A lightweight LAN watch-together tool for Windows. The host plays a local video with mpv or VLC, and the guest automatically follows play, pause, seek and speed of progress. Chat messages are shown directly on top of the video as an OSD overlay.
 
 ## Preview
 
-<img src="src/界面.png" width="50%" alt="Screenshot">
+<img src="docs/界面.png" width="50%" alt="Screenshot">
 
 ## Features
 
@@ -37,7 +44,7 @@ Common options:
 
 | Tool | Notes |
 | --- | --- |
-| [Radmin VPN](https://www.radmin-vpn.com/) | Free and ready after install; assigns a `26.x.x.x` virtual IP. Easiest to set up — recommended |
+| [Radmin LAN](https://www.radmin-lan.cn/) | Free and ready after install; assigns a `26.x.x.x` virtual IP. Easiest to set up — **recommended** |
 | [Oray Pugongying](https://pgy.oray.com/) | Chinese nodes, stable connections; the free tier limits devices and bandwidth |
 | [NetEase UU](https://uu.163.com/) | Game accelerator that also offers a co-op networking mode; handy if you already use it |
 | [Tailscale](https://tailscale.com/) | WireGuard based, good speed, requires signing in with an account |
@@ -51,16 +58,26 @@ Common options:
 ## Run
 
 ```bash
+# Clone the repository
 git clone https://github.com/byzh/byzh_LAN_Syncplay.git
 cd byzh_LAN_Syncplay
-pip install PySide6 python-vlc websockets
+
+# Create a virtual environment
+python -m venv .venv
+
+# Install dependencies
+.venv\Scripts\activate
+pip install PySide6 pyinstaller -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# Run
+.venv\Scripts\activate
 python main.py
 ```
 
 ## Build
 
 ```bash
-pyinstaller -F -w main.py
+pyinstaller_build.bat
 ```
 
 ## Project layout
