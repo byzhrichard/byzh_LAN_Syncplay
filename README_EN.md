@@ -13,7 +13,7 @@ A lightweight LAN watch-together tool for Windows. The host plays a local video 
 
 ## Preview
 
-<img src="docs/界面.png" width="50%" alt="Screenshot">
+<img src="docs/界面_en.png" width="50%" alt="Screenshot">
 
 ## Usage
 

@@ -13,7 +13,7 @@
 
 ## 界面预览
 
-<img src="docs/界面.png" width="50%" alt="界面截图">
+<img src="docs/界面_zh.png" width="50%" alt="界面截图">
 
 ## 使用说明
 
